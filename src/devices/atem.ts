@@ -63,8 +63,7 @@ export type CommandReceiver = (time: number, command: AtemConnection.Commands.IS
 export class AtemDevice extends DeviceWithState<DeviceState> implements IDevice {
 	private _doOnTime: DoOnTime
 
-	private _atem: AtemConnection.Atem
-	private _state: AtemState
+	private _atem: AtemConnection.BasicAtem
 	private _initialized: boolean = false
 	private _connected: boolean = false // note: ideally this should be replaced by this._atem.connected
 
@@ -97,8 +96,7 @@ export class AtemDevice extends DeviceWithState<DeviceState> implements IDevice 
 	init (options: AtemOptions): Promise<boolean> {
 		return new Promise((resolve, reject) => {
 			// This is where we would do initialization, like connecting to the devices, etc
-			this._state = new AtemState()
-			this._atem = new AtemConnection.Atem({ externalLog: console.log })
+			this._atem = new AtemConnection.BasicAtem({ externalLog: console.log })
 			this._atem.once('connected', () => {
 				// check if state has been initialized:
 				this._connected = true
@@ -174,7 +172,7 @@ export class AtemDevice extends DeviceWithState<DeviceState> implements IDevice 
 		}
 
 		let previousStateTime = Math.max(this.getCurrentTime(), newState.time)
-		let oldState: DeviceState = (this.getStateBefore(previousStateTime) || { state: this._getDefaultState() }).state
+		let oldState: DeviceState = (this.getStateBefore(previousStateTime) || { state: new DeviceState() }).state
 
 		let oldAtemState = oldState
 		let newAtemState = this.convertStateToAtem(newState)
@@ -234,7 +232,15 @@ export class AtemDevice extends DeviceWithState<DeviceState> implements IDevice 
 							if (tlObject.content.type === TimelineContentTypeAtem.ME) {
 								let me = deviceState.video.getMe(mapping.index)
 								let atemObj = tlObject as any as TimelineObjAtemME
-								if (me) deepExtend(me, atemObj.content.me)
+								let atemObjKeyers = atemObj.content.me.upstreamKeyers
+
+								deepExtend(me, _.omit(atemObj.content.me, 'upstreamKeyers'))
+								if (atemObjKeyers) {
+									_.each(atemObjKeyers, (objKey, i) => {
+										const keyer = me.getUpstreamKeyer(i)
+										deepExtend(keyer, objKey)
+									})
+								}
 							}
 							break
 						case MappingAtemType.DownStreamKeyer:
@@ -371,11 +377,8 @@ export class AtemDevice extends DeviceWithState<DeviceState> implements IDevice 
 	 * @param newAtemState
 	 */
 	private _diffStates (oldAtemState: DeviceState, newAtemState: DeviceState): Array<AtemCommandWithContext> {
-		// Ensure the state diffs the correct version
-		this._state.version = this._atem.state.info.apiVersion
-
 		return _.map(
-			this._state.diffStates(oldAtemState, newAtemState),
+			AtemState.diffStates(this._atem.state.info.apiVersion, oldAtemState, newAtemState),
 			(cmd: any) => {
 				if (_.has(cmd,'command') && _.has(cmd,'context')) {
 					return cmd as AtemCommandWithContext
@@ -383,7 +386,9 @@ export class AtemDevice extends DeviceWithState<DeviceState> implements IDevice 
 					// backwards compability, to be removed later:
 					return {
 						command: cmd as AtemConnection.Commands.ISerializableCommand,
-						context: null,
+						context: {
+							commandName: cmd.constructor.name
+						},
 						timelineObjId: '' // @todo: implement in Atem-state
 					}
 				}
@@ -401,7 +406,6 @@ export class AtemDevice extends DeviceWithState<DeviceState> implements IDevice 
 
 		return this._atem.sendCommand(command)
 		.then(() => {
-			console.log('ack')
 			// @todo: command was acknowledged by atem, how will we check if it did what we wanted?
 		})
 		.catch((error) => {

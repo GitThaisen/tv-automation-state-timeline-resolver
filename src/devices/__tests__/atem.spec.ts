@@ -1,4 +1,4 @@
-import { Enums, MixEffect } from 'atem-state'
+import { Enums, Commands } from 'atem-state'
 import { ResolvedTimelineObjectInstance } from 'superfly-timeline'
 import { Conductor } from '../../conductor'
 import { AtemDevice, DeviceOptionsAtemInternal } from '../atem'
@@ -16,6 +16,9 @@ import { ThreadedClass } from 'threadedclass'
 import { TimelineState } from '../../types/src/superfly-timeline'
 import { literal } from '../device'
 
+import 'jest-extended'
+import _ = require('underscore')
+
 describe('Atem', () => {
 	let mockTime = new MockTime()
 	beforeAll(() => {
@@ -24,6 +27,27 @@ describe('Atem', () => {
 	beforeEach(() => {
 		mockTime.init()
 	})
+
+	function wasCalledWith (receiver: jest.Mock<Promise<void>>, expected: Commands.ISerializableCommand) {
+		// const expected2 = expected as any
+		// // Find an object that looks correct
+		// const match = receiver.mock.calls.find(call => {
+		// 	const obj = call[1]
+		// 	if (obj.constructor.name !== expected.constructor.name) return false
+		// 	if (!_.isEqual(obj.properties, expected2.properties)) return false
+		// 	if (expected2.flags !== undefined && expected2.flags !== obj.flags) return false
+
+		// 	return true
+		// })
+		// // Then verify the other params, and ensure we didnt miss anything.
+		// expect(match).toEqual([expect.anything(), expected, expect.objectContaining({
+		// 	commandName: expected.constructor.name
+		// }), expect.stringContaining('')])
+
+		expect(receiver).toBeCalledWith(expect.anything(), expected, expect.objectContaining({
+			commandName: expected.constructor.name
+		}), expect.stringContaining(''))
+	}
 
 	test('Atem: Ensure clean initial state', async () => {
 		const commandReceiver0: any = jest.fn(() => {
@@ -53,7 +77,7 @@ describe('Atem', () => {
 
 	test('Atem: switch input', async () => {
 
-		const commandReceiver0: any = jest.fn(() => {
+		const commandReceiver0 = jest.fn(() => {
 			return Promise.resolve()
 		})
 		let myLayerMapping0: MappingAtem = {
@@ -126,45 +150,15 @@ describe('Atem', () => {
 		commandReceiver0.mockClear()
 		await mockTime.advanceTimeToTicks(10200)
 		expect(commandReceiver0).toHaveBeenCalledTimes(2)
-		expect(commandReceiver0).toBeCalledWith(expect.anything(), expect.objectContaining(
-			{
-				flag: 0,
-				rawName: 'CPvI',
-				mixEffect: 0,
-				properties: {
-					source: 2
-				}
-			}
-		), null, expect.stringContaining(''))
-		expect(commandReceiver0).toBeCalledWith(expect.anything(), expect.objectContaining(
-			{
-				flag: 0,
-				rawName: 'DCut',
-				mixEffect: 0
-			}
-		), null, expect.stringContaining(''))
+		wasCalledWith(commandReceiver0, new Commands.PreviewInputCommand(0, 2))
+		wasCalledWith(commandReceiver0, new Commands.CutCommand(0))
 
 		commandReceiver0.mockClear()
 		await mockTime.advanceTimeToTicks(12200)
 
 		expect(commandReceiver0).toHaveBeenCalledTimes(2)
-		expect(commandReceiver0).toBeCalledWith(expect.anything(), expect.objectContaining(
-			{
-				flag: 0,
-				rawName: 'CPvI',
-				mixEffect: 0,
-				properties: {
-					source: 3
-				}
-			}
-		), null, expect.stringContaining(''))
-		expect(commandReceiver0).toBeCalledWith(expect.anything(), expect.objectContaining(
-			{
-				flag: 0,
-				rawName: 'DCut',
-				mixEffect: 0
-			}
-		), null, expect.stringContaining(''))
+		wasCalledWith(commandReceiver0, new Commands.PreviewInputCommand(0, 3))
+		wasCalledWith(commandReceiver0, new Commands.CutCommand(0))
 	})
 
 	test('Atem: upstream keyer', async () => {
@@ -234,20 +228,15 @@ describe('Atem', () => {
 
 		await mockTime.advanceTimeToTicks(10200)
 
+		const lumaCommand = new Commands.MixEffectKeyLumaCommand(0, 0)
+		lumaCommand.updateProps({
+			clip: 300,
+			gain: 2,
+			invert: true
+		})
+
 		expect(commandReceiver0).toHaveBeenCalledTimes(1)
-		expect(commandReceiver0).toBeCalledWith(expect.anything(), expect.objectContaining(
-			{
-				flag: 14,
-				rawName: 'CKLm',
-				mixEffect: 0,
-				upstreamKeyerId: 0,
-				properties: {
-					clip: 300,
-					gain: 2,
-					invert: true
-				}
-			}
-		), null, expect.stringContaining('')) // obj0
+		wasCalledWith(commandReceiver0, lumaCommand) // obj9
 	})
 
 	test('Atem: handle same state', async () => {
