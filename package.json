@@ -151,7 +151,6 @@
     "production"
   ],
   "dependencies": {
-    "atem-connection": "1.1.0",
     "atem-state": "^0.8.1",
     "casparcg-connection": "4.8.1",
     "casparcg-state": "^1.11.0",
