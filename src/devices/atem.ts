@@ -377,6 +377,8 @@ export class AtemDevice extends DeviceWithState<DeviceState> implements IDevice 
 	 * @param newAtemState
 	 */
 	private _diffStates (oldAtemState: DeviceState, newAtemState: DeviceState): Array<AtemCommandWithContext> {
+		if (!this._atem.state) return []
+
 		return _.map(
 			AtemState.diffStates(this._atem.state.info.apiVersion, oldAtemState, newAtemState),
 			(cmd: any) => {
