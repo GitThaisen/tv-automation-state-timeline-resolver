@@ -217,7 +217,6 @@ workflows:
     jobs:
       - test-latest(node-12)
       - test-node-10
-      - test-node-8
       - validate-all-dependencies:
           filters:
             branches:
@@ -235,7 +234,6 @@ workflows:
             - validate-dependencies
             - test-latest(node-12)
             - test-node-10
-            - test-node-8
           filters:
             branches:
               only:
@@ -244,7 +242,6 @@ workflows:
           requires:
             - test-latest(node-12)
             - test-node-10
-            - test-node-8
           filters:
             tags:
               ignore: /.*/
